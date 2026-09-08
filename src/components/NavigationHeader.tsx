@@ -1,5 +1,5 @@
 import React from 'react';
-import { ViewMode } from '../types';
+import { ViewMode, UserAccount } from '../types';
 
 interface NavigationHeaderProps {
   currentView: ViewMode;
@@ -8,6 +8,8 @@ interface NavigationHeaderProps {
   onToggleMobileFrame: () => void;
   cartCount: number;
   onOpenCart?: () => void;
+  currentUser: UserAccount | null;
+  onSignOut: () => void;
 }
 
 export const NavigationHeader: React.FC<NavigationHeaderProps> = ({
@@ -17,6 +19,8 @@ export const NavigationHeader: React.FC<NavigationHeaderProps> = ({
   onToggleMobileFrame,
   cartCount,
   onOpenCart,
+  currentUser,
+  onSignOut,
 }) => {
   const views: { id: ViewMode; label: string; icon: string; badge?: string; roleTag?: string }[] = [
     { id: 'customer', label: 'Customer App', icon: 'smartphone', badge: 'Mobile', roleTag: 'Patient' },
@@ -27,6 +31,13 @@ export const NavigationHeader: React.FC<NavigationHeaderProps> = ({
     { id: 'iam', label: 'IAM & Governance', icon: 'badge', badge: 'Enterprise', roleTag: 'Security' },
     { id: 'superadmin', label: 'Super Admin Fleet', icon: 'lan', badge: 'Shard Fleet', roleTag: 'Root Trust' },
     { id: 'architecture', label: 'Architecture & PRD', icon: 'account_tree', badge: 'Blueprint', roleTag: 'System' },
+    {
+      id: 'auth',
+      label: currentUser ? 'My Account' : 'Login / Register',
+      icon: 'account_circle',
+      badge: currentUser ? currentUser.role.split(' ')[0] : 'Sign In',
+      roleTag: 'Access',
+    },
   ];
 
   return (
@@ -45,7 +56,43 @@ export const NavigationHeader: React.FC<NavigationHeaderProps> = ({
           </span>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* User Account / Session Pill in Top Bar */}
+          {currentUser ? (
+            <div className="flex items-center gap-1 bg-blue-950/70 border border-blue-800/80 rounded-full px-2 py-0.5 text-[11px]">
+              <button
+                onClick={() => onViewChange('auth')}
+                className="flex items-center gap-1.5 hover:text-white transition"
+                title="Manage Account / Switch User"
+              >
+                <span className="w-4 h-4 rounded-full bg-emerald-500 text-white font-bold text-[9px] flex items-center justify-center">
+                  {currentUser.name.charAt(0)}
+                </span>
+                <span className="font-semibold text-white truncate max-w-[90px] sm:max-w-[130px]">
+                  {currentUser.name}
+                </span>
+                <span className="hidden sm:inline text-[9px] px-1.5 py-0.2 bg-blue-900 text-blue-200 rounded-full">
+                  {currentUser.role.split(' ')[0]}
+                </span>
+              </button>
+              <button
+                onClick={onSignOut}
+                className="text-slate-400 hover:text-red-400 transition p-0.5 rounded-full"
+                title="Sign Out"
+              >
+                <span className="material-symbols-outlined text-[14px]">logout</span>
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => onViewChange('auth')}
+              className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-medium text-[11px] transition shadow-xs"
+            >
+              <span className="material-symbols-outlined text-xs">login</span>
+              <span>Sign In / Register</span>
+            </button>
+          )}
+
           {currentView === 'customer' && (
             <button
               onClick={onToggleMobileFrame}
@@ -69,9 +116,9 @@ export const NavigationHeader: React.FC<NavigationHeaderProps> = ({
             </button>
           )}
 
-          <div className="hidden sm:flex items-center gap-1.5 text-slate-300 text-[11px]">
+          <div className="hidden lg:flex items-center gap-1.5 text-slate-300 text-[11px]">
             <span className="material-symbols-outlined text-xs text-emerald-400">verified_user</span>
-            <span>CDSCO Form 20B/21B Aligned</span>
+            <span>CDSCO Form 20B/21B</span>
           </div>
         </div>
       </div>

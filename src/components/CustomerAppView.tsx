@@ -1,12 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MEDICINES_DATA } from '../data/initialData';
-import { MedicineOffer } from '../types';
+import { MedicineOffer, UserAccount } from '../types';
+import { PrescriptionScannerModal } from './PrescriptionScannerModal';
 
 interface CustomerAppViewProps {
   mobileFrameMode: boolean;
   onAddToCart: (offer: MedicineOffer, medicineKey: string) => void;
   cartCount: number;
   onOpenCart: () => void;
+  currentUser?: UserAccount | null;
+  onOpenAuth?: () => void;
 }
 
 export const CustomerAppView: React.FC<CustomerAppViewProps> = ({
@@ -14,13 +17,14 @@ export const CustomerAppView: React.FC<CustomerAppViewProps> = ({
   onAddToCart,
   cartCount,
   onOpenCart,
+  currentUser,
+  onOpenAuth,
 }) => {
   const [searchQuery, setSearchQuery] = useState('Paracetamol 650mg');
   const [selectedFilter, setSelectedFilter] = useState<'lowest' | 'speed' | 'rating' | 'instock'>('lowest');
   const [selectedLocation, setSelectedLocation] = useState('Dadar, Mumbai 400028');
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [showRxModal, setShowRxModal] = useState(false);
-  const [rxUploaded, setRxUploaded] = useState(false);
   const [showNotificationToast, setShowNotificationToast] = useState<string | null>(null);
 
   // Voice Search states
@@ -225,7 +229,30 @@ export const CustomerAppView: React.FC<CustomerAppViewProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              {currentUser ? (
+                <button
+                  onClick={onOpenAuth}
+                  className="flex items-center gap-1 px-2 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-medium transition"
+                  title={`Signed in as ${currentUser.name} (${currentUser.role})`}
+                >
+                  <span className="w-5 h-5 rounded-full bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center">
+                    {currentUser.name.charAt(0)}
+                  </span>
+                  <span className="hidden sm:inline text-[11px] truncate max-w-[80px]">
+                    {currentUser.name.split(' ')[0]}
+                  </span>
+                </button>
+              ) : (
+                <button
+                  onClick={onOpenAuth}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-2xs transition"
+                >
+                  <span className="material-symbols-outlined text-[15px]">account_circle</span>
+                  <span className="hidden xs:inline">Sign In</span>
+                </button>
+              )}
+
               <button
                 onClick={() => setShowRxModal(true)}
                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium border border-blue-200 transition"
@@ -287,7 +314,7 @@ export const CustomerAppView: React.FC<CustomerAppViewProps> = ({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by brand (Calpol) or generic salt (Paracetamol)..."
-              className="w-full pl-9 pr-20 py-2.5 bg-slate-100 rounded-xl text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white transition border border-transparent focus:border-blue-600"
+              className="w-full pl-9 pr-28 py-2.5 bg-slate-100 rounded-xl text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white transition border border-transparent focus:border-blue-600"
             />
             <div className="absolute right-2.5 flex items-center gap-1">
               {searchQuery && (
@@ -299,6 +326,15 @@ export const CustomerAppView: React.FC<CustomerAppViewProps> = ({
                   <span className="material-symbols-outlined text-sm">close</span>
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => setShowRxModal(true)}
+                className="p-1.5 rounded-full text-slate-500 hover:text-blue-600 hover:bg-slate-200 transition flex items-center justify-center"
+                title="Scan Handwritten Prescription (AI Rx Decoder)"
+                aria-label="Scan Prescription"
+              >
+                <span className="material-symbols-outlined text-[19px]">document_scanner</span>
+              </button>
               <button
                 type="button"
                 onClick={toggleVoiceSearch}
@@ -361,6 +397,13 @@ export const CustomerAppView: React.FC<CustomerAppViewProps> = ({
 
           {/* Suggested Quick Searches */}
           <div className="flex items-center gap-1.5 mt-2.5 overflow-x-auto no-scrollbar text-[11px]">
+            <button
+              onClick={() => setShowRxModal(true)}
+              className="flex items-center gap-1 px-2.5 py-0.5 rounded-full border border-blue-200 bg-blue-50 text-blue-700 font-semibold shrink-0 hover:bg-blue-100 transition shadow-2xs"
+            >
+              <span className="material-symbols-outlined text-[14px]">document_scanner</span>
+              <span>AI Scan Rx</span>
+            </button>
             <span className="text-slate-400 shrink-0">Popular:</span>
             {['Paracetamol 650mg', 'Metformin 500mg', 'Atorvastatin 10mg', 'Pantoprazole 40mg', 'Amoxicillin 625mg'].map((term) => (
               <button
@@ -614,67 +657,16 @@ export const CustomerAppView: React.FC<CustomerAppViewProps> = ({
           </div>
         )}
 
-        {/* Scan Prescription Modal */}
-        {showRxModal && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-3xl max-w-sm w-full p-5 space-y-4 shadow-2xl border border-slate-100">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
-                    <span className="material-symbols-outlined text-base">document_scanner</span>
-                  </div>
-                  <div>
-                    <h3 className="font-headline font-bold text-slate-900 text-sm">Scan Prescription</h3>
-                    <p className="text-[11px] text-slate-500">AI Salt Normalization Engine</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowRxModal(false)}
-                  className="text-slate-400 hover:text-slate-600 p-1 rounded-full"
-                >
-                  <span className="material-symbols-outlined text-base">close</span>
-                </button>
-              </div>
-
-              <div className="border-2 border-dashed border-slate-300 rounded-2xl p-6 text-center bg-slate-50 hover:bg-slate-100 transition cursor-pointer"
-                   onClick={() => setRxUploaded(true)}>
-                {rxUploaded ? (
-                  <div className="space-y-2">
-                    <span className="material-symbols-outlined text-3xl text-emerald-600">check_circle</span>
-                    <p className="text-xs font-bold text-slate-900">Rx_Dr_Mehta_Aug2026.pdf Uploaded</p>
-                    <p className="text-[11px] text-slate-500">Extracted: Paracetamol 650mg, Metformin 500mg ER</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <span className="material-symbols-outlined text-3xl text-blue-600">cloud_upload</span>
-                    <p className="text-xs font-medium text-slate-700">Tap to upload doctor prescription image or PDF</p>
-                    <p className="text-[10px] text-slate-400">Supported: JPG, PNG, PDF up to 10MB</p>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setShowRxModal(false)}
-                  className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-700 text-xs font-medium hover:bg-slate-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => {
-                    setShowRxModal(false);
-                    setSearchQuery('Paracetamol 650mg');
-                    setShowNotificationToast('Prescription analyzed: Showing cheapest generic matches!');
-                    setTimeout(() => setShowNotificationToast(null), 3500);
-                  }}
-                  className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs"
-                >
-                  Find Generic Equivalents
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* AI-Powered Prescription Scanner Modal */}
+        <PrescriptionScannerModal
+          isOpen={showRxModal}
+          onClose={() => setShowRxModal(false)}
+          onSelectMedicine={(medicineName) => {
+            setSearchQuery(medicineName);
+            setShowNotificationToast(`Prescription parsed: Search auto-populated with "${medicineName}"`);
+            setTimeout(() => setShowNotificationToast(null), 4000);
+          }}
+        />
       </div>
     </div>
   );

@@ -4,7 +4,8 @@
  */
 
 import React, { useState } from 'react';
-import { ViewMode, MedicineOffer } from './types';
+import { ViewMode, MedicineOffer, UserAccount } from './types';
+import { SYSTEM_USERS } from './data/initialData';
 import { NavigationHeader } from './components/NavigationHeader';
 import { CustomerAppView } from './components/CustomerAppView';
 import { DispensaryPortalView } from './components/DispensaryPortalView';
@@ -14,11 +15,21 @@ import { OrdersDispatchView } from './components/OrdersDispatchView';
 import { IAMView } from './components/IAMView';
 import { SuperAdminView } from './components/SuperAdminView';
 import { ArchitectureView } from './components/ArchitectureView';
+import { AuthScreen } from './components/AuthScreen';
 import { CartDrawer, CartItem } from './components/CartDrawer';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<ViewMode>('customer');
   const [mobileFrameMode, setMobileFrameMode] = useState<boolean>(true);
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
+    try {
+      const saved = localStorage.getItem('genericmed_auth_user');
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+    return SYSTEM_USERS[4]; // Default to Aarav Sharma (Customer/Patient)
+  });
   const [cartItems, setCartItems] = useState<CartItem[]>([
     {
       offer: {
@@ -47,6 +58,31 @@ export default function App() {
   ]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [orderToast, setOrderToast] = useState<string | null>(null);
+
+  const handleLoginSuccess = (user: UserAccount, targetView?: ViewMode) => {
+    setCurrentUser(user);
+    try {
+      localStorage.setItem('genericmed_auth_user', JSON.stringify(user));
+    } catch {
+      // ignore
+    }
+    setOrderToast(`Welcome, ${user.name}! Signed in as ${user.role}.`);
+    setTimeout(() => setOrderToast(null), 5000);
+    if (targetView) {
+      setCurrentView(targetView);
+    }
+  };
+
+  const handleSignOut = () => {
+    setCurrentUser(null);
+    try {
+      localStorage.removeItem('genericmed_auth_user');
+    } catch {
+      // ignore
+    }
+    setOrderToast('Signed out successfully. Switched to Guest session.');
+    setTimeout(() => setOrderToast(null), 4000);
+  };
 
   const handleAddToCart = (offer: MedicineOffer, medicineKey: string) => {
     setCartItems((prev) => {
@@ -91,6 +127,8 @@ export default function App() {
         onToggleMobileFrame={() => setMobileFrameMode(!mobileFrameMode)}
         cartCount={totalCartCount}
         onOpenCart={() => setIsCartOpen(true)}
+        currentUser={currentUser}
+        onSignOut={handleSignOut}
       />
 
       {/* Screen View Rendering */}
@@ -101,6 +139,8 @@ export default function App() {
             onAddToCart={handleAddToCart}
             cartCount={totalCartCount}
             onOpenCart={() => setIsCartOpen(true)}
+            currentUser={currentUser}
+            onOpenAuth={() => setCurrentView('auth')}
           />
         )}
 
@@ -117,6 +157,15 @@ export default function App() {
         {currentView === 'superadmin' && <SuperAdminView />}
 
         {currentView === 'architecture' && <ArchitectureView />}
+
+        {currentView === 'auth' && (
+          <AuthScreen
+            currentUser={currentUser}
+            onLoginSuccess={handleLoginSuccess}
+            onSignOut={handleSignOut}
+            onNavigate={setCurrentView}
+          />
+        )}
       </main>
 
       {/* Cart & Checkout Drawer */}

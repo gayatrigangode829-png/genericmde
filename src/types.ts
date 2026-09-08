@@ -6,7 +6,8 @@ export type ViewMode =
   | 'orders'
   | 'iam'
   | 'superadmin'
-  | 'architecture';
+  | 'architecture'
+  | 'auth';
 
 export interface MedicineOffer {
   id: string;
@@ -108,12 +109,25 @@ export interface UserAccount {
   id: string;
   name: string;
   email: string;
+  phone?: string;
   role: 'Super Admin' | 'Admin / Ops Lead' | 'Pharmacist-in-Charge' | 'Support & Compliance' | 'Customer / Patient';
   tenantBound: string;
   status: 'Active' | 'Suspended' | 'Pending Verification';
   mfaEnabled: boolean;
   lastLogin: string;
   permissions: string[];
+  pharmacyDetails?: {
+    storeName: string;
+    drugLicenseNo: string;
+    pharmacistCouncilReg: string;
+    pincode: string;
+    city: string;
+  };
+  patientDetails?: {
+    pincode: string;
+    city: string;
+    chronicConditions?: string[];
+  };
 }
 
 export interface FormularySalt {
