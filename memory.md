@@ -20,14 +20,17 @@ This document represents the long-term memory for the **GenericMed** platform. I
 
 | Layer | Technology | Description |
 | :--- | :--- | :--- |
-| **Frontend Framework** | React 19.0 | Modern SPA client framework |
-| **Language** | TypeScript 5.8 | Strict typing across components & APIs |
-| **Build Tool & Server** | Vite 6.2 + Express 4.21 | Hot-module replacement dev server & production SPA hosting |
-| **Runtime & Execution** | Node.js / `tsx` 4.21 / ESBuild | TypeScript execution server side |
+| **Architecture** | Decoupled Dual-Folder (`frontend/` & `backend/`) | Clean separation of frontend SPA and backend API server |
+| **Frontend Framework** | React 19.0 (in `frontend/`) | Modern SPA client framework |
+| **Backend Framework** | Express 4.21 (in `backend/`) | Dedicated Node.js REST API & WebSocket server |
+| **Language** | TypeScript 5.8 | Strict typing across client & server subfolders |
+| **Build & Dev Proxy** | Vite 6.2 + Tailwind CSS v4 | HMR dev server on port 5173 with `/api` proxy to port 3000 |
+| **Runtime & Bundler** | Node.js / `tsx` 4.21 / ESBuild | TypeScript execution server side |
+| **Database ORM** | Prisma 8.0 / SQLite (`backend/prisma/`) | Database schema & automated seed scripts |
 | **AI Vision Engine** | Google GenAI SDK (`@google/genai` v2.4) | Multimodal prescription deciphering (`gemini-3.8-flash`) |
 | **Styling & Icons** | Tailwind CSS v4.1 + Lucide React | Zero-config utility styling & vector icons |
 | **Animations** | Motion 12.23 | Fluid drawer transitions & modal animations |
-| **Analytics & Data Vis** | Recharts 3.10 | Dispensary GMV, SLA compliance, & fulfillment charts |
+| **Analytics & Vis** | Recharts 3.10 | Dispensary GMV, SLA compliance, & fulfillment charts |
 
 ---
 

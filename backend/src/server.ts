@@ -1,14 +1,22 @@
 import express from 'express';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
-import { SYSTEM_USERS, MEDICINES_DATA, TENANT_NODES, INITIAL_DISPENSARY_ORDERS } from './src/data/initialData';
+import { SYSTEM_USERS, MEDICINES_DATA, TENANT_NODES, INITIAL_DISPENSARY_ORDERS } from './data/initialData';
+import { wsService } from './services/websocket';
+import { LOGISTICS_PARTNERS, assignRider, verifyRiderOTP } from './services/logisticsAdapter';
+import { sendCustomerNotification } from './services/notificationService';
+import { analyzeDrugInteractions } from './services/ddiEngine';
+import { verifyPrescriptionAuthenticity } from './services/fraudDetectionService';
+import { generateCDSCOComplianceReport } from './services/cdscoReportGenerator';
+import { CLUSTER_NODES, scaleClusterNode } from './services/clusterOrchestrator';
+import { WHOLESALERS, createPurchaseOrder } from './services/b2bProcurementService';
+import { computeDemandForecast } from './services/demandForecastingService';
 
 dotenv.config();
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'genericmed-jwt-secret-key-2026';
 
 // Lazy initialization of Gemini client
@@ -32,6 +40,17 @@ async function startServer() {
 
   // Increase payload limit for base64 prescription images
   app.use(express.json({ limit: '25mb' }));
+
+  // CORS middleware for standalone frontend development
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    next();
+  });
 
   // Health check endpoint
   app.get('/api/health', (req, res) => {
@@ -103,12 +122,187 @@ async function startServer() {
     return res.json(INITIAL_DISPENSARY_ORDERS);
   });
 
+  // Phase 3: Real-Time Telemetry & 3PL Logistics Gateway Endpoints
+  app.get('/api/logistics/partners', (req, res) => {
+    return res.json({
+      partners: LOGISTICS_PARTNERS,
+      activeConnections: wsService.getConnectionsCount(),
+    });
+  });
+
+  app.post('/api/orders/:id/dispatch', (req, res) => {
+    const { id } = req.params;
+    const { partnerCode = 'shadowfax' } = req.body;
+    const order = INITIAL_DISPENSARY_ORDERS.find((o) => o.id === id) || INITIAL_DISPENSARY_ORDERS[0];
+    const rider = assignRider(partnerCode, id);
+    order.rider = rider;
+    order.status = 'ready_dispatch';
+
+    // Broadcast WebSocket Telemetry Event
+    const wsEvent = wsService.broadcast({
+      type: 'RIDER_TELEMETRY_UPDATED',
+      orderId: id,
+      tenantCode: 'TN-044',
+      timestamp: new Date().toISOString(),
+      payload: { rider, status: 'ready_dispatch' },
+    });
+
+    // Send WhatsApp/SMS alert to customer
+    const notification = sendCustomerNotification({
+      recipientPhone: order.customerPhoneMasked,
+      orderId: id,
+      channel: 'whatsapp',
+      messageType: 'DISPATCHED',
+      otpCode: rider.otp,
+    });
+
+    return res.json({
+      message: 'Rider dispatched successfully',
+      orderId: id,
+      rider,
+      notification,
+      wsEvent,
+    });
+  });
+
+  app.post('/api/orders/:id/status', (req, res) => {
+    const { id } = req.params;
+    const { status } = req.body;
+    if (!status) {
+      return res.status(400).json({ error: 'Status is required' });
+    }
+    const order = INITIAL_DISPENSARY_ORDERS.find((o) => o.id === id);
+    if (order) {
+      order.status = status;
+    }
+
+    const wsEvent = wsService.broadcast({
+      type: 'ORDER_STATUS_CHANGED',
+      orderId: id,
+      tenantCode: 'TN-044',
+      timestamp: new Date().toISOString(),
+      payload: { status },
+    });
+
+    return res.json({
+      message: 'Order status updated',
+      orderId: id,
+      status,
+      wsEvent,
+    });
+  });
+
+  app.post('/api/orders/:id/verify-otp', (req, res) => {
+    const { id } = req.params;
+    const { otpSubmitted } = req.body;
+    const order = INITIAL_DISPENSARY_ORDERS.find((o) => o.id === id) || INITIAL_DISPENSARY_ORDERS[0];
+    const expectedOTP = order.rider?.otp || '8842';
+
+    const isValid = verifyRiderOTP(expectedOTP, String(otpSubmitted));
+    if (!isValid) {
+      return res.status(400).json({ error: 'Invalid delivery OTP code' });
+    }
+
+    order.status = 'completed';
+    const notification = sendCustomerNotification({
+      recipientPhone: order.customerPhoneMasked,
+      orderId: id,
+      channel: 'sms',
+      messageType: 'DELIVERED',
+    });
+
+    return res.json({
+      message: 'Delivery OTP verified successfully. Order marked completed!',
+      orderId: id,
+      status: 'completed',
+      notification,
+    });
+  });
+
+  // Phase 4: AI Clinical Safety & CDSCO Compliance Endpoints
+  app.post('/api/clinical/check-interactions', (req, res) => {
+    const { salts } = req.body;
+    if (!salts || !Array.isArray(salts) || salts.length === 0) {
+      return res.status(400).json({ error: 'Array of active chemical salts is required' });
+    }
+    const ddiResult = analyzeDrugInteractions(salts);
+    return res.json(ddiResult);
+  });
+
+  app.post('/api/clinical/verify-prescription', (req, res) => {
+    const verificationResult = verifyPrescriptionAuthenticity(req.body);
+    return res.json(verificationResult);
+  });
+
+  app.get('/api/compliance/cdsco-report', (req, res) => {
+    const report = generateCDSCOComplianceReport();
+    return res.json(report);
+  });
+
+  app.get('/api/compliance/pricing-anomalies', (req, res) => {
+    const report = generateCDSCOComplianceReport();
+    const anomalies = report.auditLedger.filter((item) => item.status.includes('ANOMALY') || item.status.includes('REVIEW'));
+    return res.json({
+      totalAnomalies: anomalies.length,
+      anomalies,
+    });
+  });
+
+  // Phase 5: Enterprise Scaling & Ecosystem Expansion Endpoints
+  app.get('/api/cluster/nodes', (req, res) => {
+    return res.json({
+      totalNodes: CLUSTER_NODES.length,
+      nodes: CLUSTER_NODES,
+    });
+  });
+
+  app.post('/api/cluster/scale', (req, res) => {
+    const { nodeId, action = 'scale_up' } = req.body;
+    if (!nodeId) {
+      return res.status(400).json({ error: 'nodeId is required' });
+    }
+    const updatedNode = scaleClusterNode(nodeId, action);
+    return res.json({
+      message: `Cluster action '${action}' applied to node ${nodeId}`,
+      node: updatedNode,
+    });
+  });
+
+  app.get('/api/b2b/wholesalers', (req, res) => {
+    return res.json(WHOLESALERS);
+  });
+
+  app.post('/api/b2b/purchase-orders', (req, res) => {
+    const { storeCode, wholesalerCode, saltName, quantityUnits, unitPrice } = req.body;
+    if (!storeCode || !saltName || !quantityUnits || !unitPrice) {
+      return res.status(400).json({ error: 'storeCode, saltName, quantityUnits, and unitPrice are required' });
+    }
+    const po = createPurchaseOrder({
+      storeCode,
+      wholesalerCode: wholesalerCode || 'cipla_b2b',
+      saltName,
+      quantityUnits: Number(quantityUnits),
+      unitPrice: Number(unitPrice),
+    });
+    return res.json({
+      message: 'B2B Purchase order created successfully',
+      purchaseOrder: po,
+    });
+  });
+
+  app.get('/api/forecast/replenishment', (req, res) => {
+    const forecast = computeDemandForecast();
+    return res.json({
+      forecastItems: forecast.length,
+      forecast,
+    });
+  });
+
   // AI-powered prescription parsing endpoint
   app.post('/api/parse-prescription', async (req, res) => {
     try {
       const { imageBase64, mimeType = 'image/jpeg', sampleId } = req.body;
 
-      // Handle sample presets directly if sampleId provided and no imageBase64
       if (sampleId && !imageBase64) {
         return res.json(getPresetSampleData(sampleId));
       }
@@ -117,9 +311,7 @@ async function startServer() {
         return res.status(400).json({ error: 'No image data provided' });
       }
 
-      // Strip data URL header if present (e.g. "data:image/jpeg;base64,")
       const cleanBase64 = imageBase64.replace(/^data:[a-zA-Z0-9/+-]+;base64,/, '');
-
       const ai = getGenAI();
 
       if (ai && process.env.GEMINI_API_KEY) {
@@ -130,13 +322,13 @@ Extract the following information:
 1. Doctor Name (or Hospital/Clinic name if legible)
 2. Patient Name / Age / Date (if legible)
 3. List of prescribed medicines:
-   - detectedName: Exact brand or written text deciphered from the doctor's handwriting (e.g., "Dolo 650", "Calpol", "Glycomet 500 SR", "Pan-D", "Augmentin 625", "Atorva 20")
-   - genericSalt: The normalized scientific chemical salt / active pharmaceutical ingredient (API) according to CDSCO / Indian Pharmacopoeia (e.g., "Paracetamol", "Metformin Hydrochloride", "Pantoprazole + Domperidone", "Amoxicillin and Potassium Clavulanate", "Atorvastatin")
-   - strength: Dosage strength (e.g., "650mg", "500mg", "40mg / 30mg", "625mg", "20mg")
-   - dosage: Directions/frequency (e.g., "1 tab TDS after food", "1-0-1", "OD before breakfast", "SOS")
+   - detectedName: Exact brand or written text deciphered from the doctor's handwriting
+   - genericSalt: The normalized scientific chemical salt / active pharmaceutical ingredient (API) according to CDSCO / Indian Pharmacopoeia
+   - strength: Dosage strength
+   - dosage: Directions/frequency
    - duration: e.g., "5 days", "1 month"
    - confidence: "high", "medium", or "low"
-4. primarySearchQuery: The single most prominent or priority medicine name and strength to search for in a generic medicine marketplace (e.g., "Paracetamol 650mg")
+4. primarySearchQuery: The single most prominent or priority medicine name and strength to search for in a generic medicine marketplace
 5. summary: A concise 1-2 sentence clinical summary of what was diagnosed or prescribed.
 
 Output MUST be strictly valid JSON conforming to this structure:
@@ -185,7 +377,6 @@ Output MUST be strictly valid JSON conforming to this structure:
         });
       }
 
-      // Fallback parser if API key is not configured
       const fallbackResult = generateIntelligentFallback(cleanBase64, sampleId);
       return res.json({
         source: 'local-clinical-engine',
@@ -194,7 +385,6 @@ Output MUST be strictly valid JSON conforming to this structure:
       });
     } catch (err: any) {
       console.error('Prescription parsing error:', err);
-      // Even on error, return an intelligent fallback so user can test the workflow seamlessly
       const fallback = getPresetSampleData('sample_dolo');
       return res.json({
         source: 'fallback-safety',
@@ -204,23 +394,8 @@ Output MUST be strictly valid JSON conforming to this structure:
     }
   });
 
-  // Vite middleware in development
-  if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
-  }
-
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`GenericMed server running on http://0.0.0.0:${PORT}`);
+    console.log(`GenericMed API server running on http://0.0.0.0:${PORT}`);
   });
 }
 
@@ -343,7 +518,6 @@ function getPresetSampleData(id: string) {
 }
 
 function generateIntelligentFallback(base64: string, sampleId?: string) {
-  // Return the closest matching clinical profile
   if (sampleId) {
     return getPresetSampleData(sampleId);
   }

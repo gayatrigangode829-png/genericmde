@@ -1,0 +1,40 @@
+{
+  "name": "genericmed-backend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "npx tsx src/server.ts",
+    "build": "npx esbuild src/server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "start": "node dist/server.cjs",
+    "lint": "npx tsc --noEmit",
+    "test": "npx tsx --test tests/server.test.ts",
+    "test:phase2": "npx tsx --test tests/phase2.test.ts",
+    "test:phase3": "npx tsx --test tests/phase3.test.ts",
+    "test:phase4": "npx tsx --test tests/phase4.test.ts",
+    "test:phase5": "npx tsx --test tests/phase5.test.ts",
+    "test:all": "npx tsx --test tests/server.test.ts tests/phase2.test.ts tests/phase3.test.ts tests/phase4.test.ts tests/phase5.test.ts",
+    "prisma:seed": "npx tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@google/genai": "^2.4.0",
+    "@prisma/client": "^7.10.0",
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.3",
+    "prisma": "^8.0.0-rc.13"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^22.14.0",
+    "esbuild": "^0.25.0",
+    "tsx": "^4.21.0",
+    "typescript": "~5.8.2"
+  },
+  "prisma": {
+    "seed": "npx tsx prisma/seed.ts"
+  }
+}

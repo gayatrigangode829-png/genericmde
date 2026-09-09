@@ -1,6 +1,6 @@
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
 }
 
 generator client {
@@ -8,7 +8,7 @@ generator client {
 }
 
 model User {
-  id                    String   @id @default(uuid())
+  id                    String   @id @default(uuid()) @map("_id")
   email                 String   @unique
   name                  String
   phone                 String?
@@ -25,7 +25,7 @@ model User {
 }
 
 model TenantNode {
-  id            String   @id @default(uuid())
+  id            String   @id @default(uuid()) @map("_id")
   name          String
   schemaId      String   @unique
   region        String
@@ -39,7 +39,7 @@ model TenantNode {
 }
 
 model FormularySalt {
-  id                 String   @id @default(uuid())
+  id                 String   @id @default(uuid()) @map("_id")
   canonicalKey       String   @unique
   saltName           String
   strength           String
@@ -57,7 +57,7 @@ model FormularySalt {
 }
 
 model MedicineOffer {
-  id               String        @id @default(uuid())
+  id               String        @id @default(uuid()) @map("_id")
   storeName        String
   storeCode        String
   storeRating      Float
@@ -81,7 +81,7 @@ model MedicineOffer {
 }
 
 model DispensaryInventoryItem {
-  id           String   @id @default(uuid())
+  id           String   @id @default(uuid()) @map("_id")
   tenantCode   String
   sku          String
   name         String
@@ -99,7 +99,7 @@ model DispensaryInventoryItem {
 }
 
 model DispensaryOrder {
-  id                   String   @id @default(uuid())
+  id                   String   @id @default(uuid()) @map("_id")
   tenantCode           String
   customerName         String
   customerPhoneMasked  String

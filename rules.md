@@ -32,32 +32,46 @@ This document specifies mandatory rules, constraints, coding standards, folder s
 
 ## 2. Folder Structure Rules
 
-Maintain a clean, modular directory structure. Do not place random scratch files or loose components outside designated folders:
+Maintain a clean, decoupled dual-folder directory structure. Do not place random scratch files or loose components outside designated folders:
 
 ```
 genericmed/
-├── server.ts                 # Main Express server & Vite integration entrypoint
-├── index.html                # SPA HTML template
-├── package.json              # Project dependencies & scripts
-├── tsconfig.json             # TypeScript compiler settings
-├── vite.config.ts            # Vite bundler & server configuration
-├── metadata.json             # Capabilities and app metadata
+├── README.md                 # Setup & execution instructions
+├── .gitignore                # Root gitignore for frontend, backend & root
 ├── decisions.md              # Architecture decision records
 ├── rules.md                  # Persistent AI guidelines (this file)
 ├── memory.md                 # Long-term project memory & technical specs
 ├── changelog.md              # Project version history
-├── public/                   # Static public assets
-└── src/                      # Frontend source code
-    ├── main.tsx              # React entry point
-    ├── App.tsx               # Root component, view state & theme provider
-    ├── index.css             # Tailwind CSS & global styles
-    ├── types.ts              # Master TypeScript domain model definitions
-    ├── components/           # UI components organized by domain view
-    │   ├── NavigationHeader.tsx
-    │   ├── CustomerAppView.tsx
-    │   ├── DispensaryPortalView.tsx
-    │   ├── OpsConsoleView.tsx
-    │   ├── MasterFormularyView.tsx
+├── phases.md                 # Development phase status registry
+│
+├── frontend/                 # React 19 + Vite + Tailwind v4 SPA
+│   ├── index.html            # SPA HTML template
+│   ├── package.json          # Independent frontend dependencies
+│   ├── tsconfig.json         # React TypeScript config
+│   ├── vite.config.ts        # Vite config with /api -> http://localhost:3000 proxy
+│   ├── .env                  # VITE_API_BASE_URL=/api
+│   ├── public/               # Static public assets & Rx presets
+│   └── src/                  # Frontend source code
+│       ├── main.tsx          # React entry point
+│       ├── App.tsx           # Root component & state management
+│       ├── index.css         # Tailwind CSS & global styles
+│       ├── types.ts          # Master UI domain types
+│       ├── data/             # Client initial data (initialData.ts)
+│       └── components/       # UI components (CustomerAppView, DispensaryPortalView, etc.)
+│
+└── backend/                  # Express 4.21 + Prisma API Server
+    ├── package.json          # Independent backend dependencies
+    ├── tsconfig.json         # Node Express TS config
+    ├── .env                  # PORT, JWT_SECRET, DATABASE_URL, GEMINI_API_KEY
+    ├── prisma/               # Database schema & seed scripts (schema.prisma, seed.ts)
+    ├── tests/                # Node integration test suites (server, phase2..5)
+    └── src/                  # Backend source code
+        ├── server.ts         # Main Express API & WebSocket entrypoint
+        ├── types.ts          # Master backend domain types
+        ├── data/             # Backend seed & initial domain data
+        ├── db/               # Prisma client instance (prisma.ts)
+        └── services/         # DDI, fraud detection, CDSCO, logistics, WS, B2B, forecast
+```
     │   ├── OrdersDispatchView.tsx
     │   ├── IAMView.tsx
     │   ├── SuperAdminView.tsx

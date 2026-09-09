@@ -169,3 +169,33 @@ Adopt **React 19**, **TypeScript 5.8**, **Tailwind CSS v4**, **Lucide React** (i
 
 ### Impact on Project
 - Codebase must maintain 100% clean TypeScript compliance without introducing unhandled runtime errors.
+
+---
+
+## ADR-007: Decoupled Dual-Folder Architecture Split (Frontend & Backend Subfolders)
+
+- **Date:** 2026-09-09
+- **Status:** Accepted
+
+### Context / Problem
+As GenericMed evolved across Phase 1 to Phase 5, the monolithic single-folder structure created coupling between frontend React UI code and backend Express/Prisma server code, sharing a single `package.json` and build scripts. To prepare the project for production deployment, microservice scaling, and independent CI/CD pipelines, complete architectural separation into dedicated `frontend/` and `backend/` subfolders was required.
+
+### Decision Taken
+Refactor the codebase into two completely autonomous subfolders:
+- `frontend/`: React 19 + Vite + Tailwind CSS v4 SPA with independent `package.json`, `tsconfig.json`, `vite.config.ts`, `index.html`, and `.env` (`VITE_API_BASE_URL=/api`).
+- `backend/`: Express 4.21 + Prisma API Server with independent `package.json`, `tsconfig.json`, `prisma/`, `tests/`, and `.env` (`PORT=3000`).
+- Configure Vite development server (`frontend/vite.config.ts`) to proxy all `/api/*` HTTP requests to `http://localhost:3000`.
+
+### Reasoning
+- **Independent Dependencies:** Keeps client-side libraries (`lucide-react`, `motion`, `recharts`) isolated from server-only packages (`express`, `@google/genai`, `bcryptjs`, `prisma`).
+- **Clean CI/CD Pipeline:** Frontend can be built as a static site asset to CDN/Vercel/Netlify while backend can be containerized separately.
+- **Enforced API Contract:** Guarantees frontend communicates exclusively through HTTP `/api/*` endpoints rather than direct TS module imports.
+
+### Alternatives Considered
+1. **Monorepo with Lerna/Turborepo:** Discarded to keep developer workflow lightweight and simple without introducing complex monorepo tooling overhead.
+2. **Single Monolith Package:** Discarded due to dependency pollution and build bundle complexity.
+
+### Impact on Project
+- Root folder now contains clean documentation (`README.md`, `decisions.md`, `rules.md`, `memory.md`, `changelog.md`, `phases.md`).
+- Developers run `npm install` and `npm run dev` independently inside `frontend/` and `backend/`.
+
