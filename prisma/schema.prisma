@@ -1,0 +1,116 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                    String   @id @default(uuid())
+  email                 String   @unique
+  name                  String
+  phone                 String?
+  role                  String
+  tenantBound           String
+  status                String   @default("Active")
+  mfaEnabled            Boolean  @default(false)
+  lastLogin             String
+  permissionsJson       String   @default("[]")
+  pharmacyDetailsJson   String?
+  patientDetailsJson    String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model TenantNode {
+  id            String   @id @default(uuid())
+  name          String
+  schemaId      String   @unique
+  region        String
+  status        String   @default("healthy")
+  activeOrders  Int      @default(0)
+  todayGMV      Float    @default(0.0)
+  slaPercent    Float    @default(99.0)
+  lastHeartbeat String
+  storageGb     Float    @default(1.0)
+  createdAt     DateTime @default(now())
+}
+
+model FormularySalt {
+  id                 String   @id @default(uuid())
+  canonicalKey       String   @unique
+  saltName           String
+  strength           String
+  therapeuticClass   String
+  dosageForm         String
+  activeSkusCount    Int      @default(0)
+  brandedBenchmark   String
+  brandedPrice       Float
+  lowestGenericPrice Float
+  savingsMargin      Float
+  status             String   @default("active")
+  cdscoCategory      String
+  offers             MedicineOffer[]
+  createdAt          DateTime @default(now())
+}
+
+model MedicineOffer {
+  id               String        @id @default(uuid())
+  storeName        String
+  storeCode        String
+  storeRating      Float
+  reviewsCount     Int
+  distanceKm       Float
+  deliveryEstimate String
+  deliveryType     String
+  brandName        String
+  manufacturer     String
+  originalPrice    Float
+  discountedPrice  Float
+  perTabletPrice   Float
+  savingsPercent   Float
+  inStock          Boolean       @default(true)
+  stockCount       Int           @default(100)
+  badge            String?
+  isLowest         Boolean       @default(false)
+  saltId           String
+  salt             FormularySalt @relation(fields: [saltId], references: [id], onDelete: Cascade)
+  createdAt        DateTime      @default(now())
+}
+
+model DispensaryInventoryItem {
+  id           String   @id @default(uuid())
+  tenantCode   String
+  sku          String
+  name         String
+  salt         String
+  manufacturer String
+  mrp          Float
+  sellingPrice Float
+  stock        Int
+  threshold    Int
+  status       String   @default("in_stock")
+  batchNumber  String
+  expiryDate   String
+  isSynched    Boolean  @default(true)
+  createdAt    DateTime @default(now())
+}
+
+model DispensaryOrder {
+  id                   String   @id @default(uuid())
+  tenantCode           String
+  customerName         String
+  customerPhoneMasked  String
+  itemsCount           Int
+  itemsSummary         String
+  itemsListJson        String
+  totalAmount          Float
+  payoutAmount         Float
+  status               String   @default("needs_acceptance")
+  timeRemainingSeconds Int      @default(300)
+  deliveryType         String   @default("Express 45m")
+  riderJson            String?
+  createdAt            DateTime @default(now())
+}

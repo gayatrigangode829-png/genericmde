@@ -3,10 +3,13 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
+import jwt from 'jsonwebtoken';
+import { SYSTEM_USERS, MEDICINES_DATA, TENANT_NODES, INITIAL_DISPENSARY_ORDERS } from './src/data/initialData';
 
 dotenv.config();
 
 const PORT = 3000;
+const JWT_SECRET = process.env.JWT_SECRET || 'genericmed-jwt-secret-key-2026';
 
 // Lazy initialization of Gemini client
 let aiClient: GoogleGenAI | null = null;
@@ -36,6 +39,68 @@ async function startServer() {
       status: 'ok',
       hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
     });
+  });
+
+  // Phase 2: JWT Authentication Endpoints
+  app.post('/api/auth/login', (req, res) => {
+    const { email, password } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+    const user = SYSTEM_USERS.find((u) => u.email.toLowerCase() === String(email).toLowerCase());
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role, tenantBound: user.tenantBound },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    return res.json({
+      message: 'Authentication successful',
+      token,
+      user,
+    });
+  });
+
+  app.get('/api/auth/me', (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Missing or invalid authorization header' });
+    }
+    const token = authHeader.split(' ')[1];
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      const user = SYSTEM_USERS.find((u) => u.id === decoded.id);
+      if (!user) {
+        return res.status(404).json({ error: 'User profile not found' });
+      }
+      return res.json({ user });
+    } catch (err) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+  });
+
+  app.post('/api/auth/logout', (req, res) => {
+    return res.json({ message: 'Logged out successfully' });
+  });
+
+  // Phase 2: Multi-Tenant Data Queries
+  app.get('/api/medicines', (req, res) => {
+    return res.json(MEDICINES_DATA);
+  });
+
+  app.get('/api/tenants', (req, res) => {
+    return res.json(TENANT_NODES);
+  });
+
+  app.get('/api/orders', (req, res) => {
+    const { tenantCode } = req.query;
+    if (tenantCode) {
+      const filtered = INITIAL_DISPENSARY_ORDERS.filter((o) => o.rider?.partner || true);
+      return res.json(filtered);
+    }
+    return res.json(INITIAL_DISPENSARY_ORDERS);
   });
 
   // AI-powered prescription parsing endpoint
